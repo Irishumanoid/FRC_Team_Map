@@ -19,6 +19,10 @@ export const MapDisplay = ({width=100, height=100, teams=new Map()}: MapProps) =
       </Box>
   );
 
+  if (!isLoaded) {
+    return <div>Loading maps</div>;
+  }
+
   return (
     <GoogleMap
       zoom={10}
