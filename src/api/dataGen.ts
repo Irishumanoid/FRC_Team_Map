@@ -108,38 +108,28 @@ export class TbaFetcher {
     );
   }
 
-  getDistToTeam(lat: number, long: number, teamNumber: number): number | null {
-    const data: Record<string, TeamAddress> = JSON.parse(
-      fs.readFileSync("team_addresses_w_codes.json", "utf-8")
-    );
+  async getTeamDrps(year: number): Promise<void> {
+    const teamDrpMap = new Map();
+    const events = await this.getResult(`events/${year}/keys`);
 
-    if (!data[teamNumber]) {
-      console.log(`Team ${teamNumber} not found`);
-      return null;
+    for (const index in events) {
+      const results = await this.getResult(`event/${events[index]}/rankings`);
+      const rankings = results.rankings || [];
+
+      for (const index in rankings) {
+        const drp = this.read(rankings[index], 'extra_stats')[0];
+        const teamCode = this.read(rankings[index], 'team_key');
+        const teamNumber = teamCode.substring(3, teamCode.length);
+        console.log(`found drp of ${drp} for team ${teamNumber}`);
+        
+        if (teamDrpMap.has(teamNumber)) {
+          teamDrpMap.set(teamNumber, (teamDrpMap.get(teamNumber) || 0) + drp);
+        } else {
+          teamDrpMap.set(teamNumber, drp);
+        }
+      }
     }
 
-    const team = data[teamNumber];
-
-    if (
-      typeof team.geocode === "string" ||
-      !("lat" in team.geocode) ||
-      !("lng" in team.geocode)
-    ) {
-      console.log("Invalid geocode for team, cannot calculate distance.");
-      return null;
-    }
-
-    const R = 6371; 
-    const dLat = ((team.geocode.lat - lat) * Math.PI) / 180;
-    const dLng = ((team.geocode.lng - long) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat * Math.PI) / 180) *
-        Math.cos((team.geocode.lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
+    fs.writeFileSync("teams_drp.json", JSON.stringify(Object.fromEntries(teamDrpMap), null, 4));
   }
 }
