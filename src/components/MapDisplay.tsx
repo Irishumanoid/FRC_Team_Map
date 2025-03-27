@@ -50,7 +50,7 @@ interface MapProps {
     return R * c;
   }
 
-  const getDistances = (lat: number, long: number) => {
+  /*const getDistances = (lat: number, long: number) => {
     const [dists, setDists] = useState<Map<string, number> | null>(null);
     useEffect(() => {
       fetch('/teams_drp.json')
@@ -77,12 +77,12 @@ interface MapProps {
       }).catch((error) => console.error("Error fetching team rank data", error));
     }, []);
     return ranks;
-  }
+  }*/
 
 export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
   const gMapsKey: string = import.meta.env.VITE_GOOGLE_MAPS_KEY;
   const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: gMapsKey });
-  const [useProx, setUseProx] = useState(false);
+  //const [useProx, setUseProx] = useState(false);
   //const [useRank, setUseRank] = useState(false);
   
   if (loadError) return (
