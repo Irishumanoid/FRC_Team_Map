@@ -108,6 +108,7 @@ export class TbaFetcher {
     );
   }
 
+  // TODO should take top 2 highest scoring events instead of all
   async getTeamDrps(year: number): Promise<void> {
     const teamDrpMap = new Map();
     const events = await this.getResult(`events/${year}/keys`);

@@ -24,10 +24,10 @@ const App = () => {
 
   return (
     <>
+     <p className="info">Map of all active FRC teams</p>
       <div>
         <MapDisplay width={1000} height={600} teams={teamData} />
       </div>
-      <p className="info">Map of all active FRC teams</p>
     </>
   );
 };
