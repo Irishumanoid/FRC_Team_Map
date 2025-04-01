@@ -18,7 +18,7 @@ interface TeamAddress {
   geocode: { lat: number; lng: number } | string;
 }
 
-export class TbaFetcher {
+class TbaFetcher {
   private gMapsKey: string;
   private maps: Client;
   private tbaKey: string;
@@ -109,8 +109,8 @@ export class TbaFetcher {
   }
 
   // TODO should take top 2 highest scoring events instead of all
-  async getTeamDrps(year: number): Promise<void> {
-    const teamDrpMap = new Map();
+  async getTeamDrps(year: number, save_name?: string): Promise<void> {
+    let teamDrpMap = new Map();
     const events = await this.getResult(`events/${year}/keys`);
 
     for (const index in events) {
@@ -124,13 +124,33 @@ export class TbaFetcher {
         console.log(`found drp of ${drp} for team ${teamNumber}`);
         
         if (teamDrpMap.has(teamNumber)) {
-          teamDrpMap.set(teamNumber, (teamDrpMap.get(teamNumber) || 0) + drp);
+          let existing: string[] = teamDrpMap.get(teamNumber) || [];
+          existing.push(drp);
+          teamDrpMap.set(teamNumber, existing);
         } else {
-          teamDrpMap.set(teamNumber, drp);
+          teamDrpMap.set(teamNumber, [drp]);
         }
       }
     }
 
-    fs.writeFileSync("teams_drp.json", JSON.stringify(Object.fromEntries(teamDrpMap), null, 4));
+    let topDrpMap = new Map();
+    for (const team of teamDrpMap.keys()) {
+      let eventDrps = teamDrpMap.get(team);
+      const length = eventDrps.length
+      let sum = 0;
+      if (length > 2) {
+        eventDrps.sort();
+        sum = eventDrps[length - 2] + eventDrps[length - 1];
+      } else {
+        for (let i = 0; i < length; i++) {
+          sum += eventDrps[i];
+        }
+      }
+      topDrpMap.set(team, sum);
+    }
+
+    fs.writeFileSync(save_name ? `${save_name}.json` : "teams_drps.json", JSON.stringify(Object.fromEntries(topDrpMap), null, 4));
   }
 }
+
+// run with: npx run dataGen.ts

@@ -4,6 +4,7 @@ import { Checkbox, Stack, Typography } from '@mui/material';
 import { Data } from './JsonInterfaces';
 import { useEffect, useState } from 'react';
 import { SortedList }  from './SortedList';
+import { TeamDesc } from './TeamDesc';
 
 interface MapProps {
   width?: number,
@@ -60,7 +61,7 @@ interface MapProps {
                 distanceMap.set(teamNumber, dist);
               }
             }
-            setDists(new Map(distanceMap)); // force rerender?
+            setDists(distanceMap);
         } catch (error) {
           console.error("error updating team distances: ", error);
         }
@@ -86,21 +87,39 @@ interface MapProps {
 export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
   const gMapsKey: string = import.meta.env.VITE_GOOGLE_MAPS_KEY;
   const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: gMapsKey });
-  const [lat, setLat] = useState(0.0);
-  const [lng, setLng] = useState(0.0);
+  const [lat, setLat] = useState(39.8283);
+  const [lng, setLng] = useState(-98.5795);
   const [useProx, setUseProx] = useState(false);
   const [useRank, setUseRank] = useState(false);
   const [proxList, setProxList] = useState<[string, number][]>([]);
+  const [needsReset, setNeedsReset] = useState(false);
   const [rankList, setRankList] = useState<[string, number][]>([]);
-  // TODO find a way to update distances in a way that doesn't break hook rules
   const dists = useDistances(lat, lng);
   const ranks = useTeamRanks();
+  const [markerState, setMarkerState] = useState({number: "", name: "", address: "",});
+  const [teamClicked, setTeamClicked] = useState(false);
+  
 
   if (loadError) return (
       <Box>
         <Typography> Loading... </Typography>
       </Box>
   );
+
+  const handleMarkerClick = (teamNumber: string, name: string, address: string, lat: number, lng: number) => {
+    console.log(`Clicked on ${name} with address ${address}`);
+    setMarkerState({number: teamNumber, name: name, address: address});
+    setTeamClicked(true);
+    setLat(lat);
+    setLng(lng);
+  }
+
+  useEffect(() => {
+    if (needsReset) {
+      window.location.reload();
+      setNeedsReset(false)
+    }
+  }, [needsReset]);
 
   useEffect(() => {
     if (useProx && dists) {
@@ -141,34 +160,42 @@ export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
     <Stack>
         <GoogleMap
         zoom={10}
-        center={{ lat: 39.8283, lng: -98.5795 }}
+        center={{lat: lat, lng: lng}}
         mapContainerStyle={{ width: `${width}px`, height: `${height}px`}}
         onClick={(e) => {
           setLat(e.latLng?.lat ?? 0.0); 
-          setLng(e.latLng?.lng ?? 0.0)
+          setLng(e.latLng?.lng ?? 0.0);
+          setTeamClicked(false);
         }}
       >
-        <Marker position={{ lat, lng }} icon={{
+        {!teamClicked && <Marker position={{ lat, lng }} icon={{
           url: "here.png", 
           scaledSize: new google.maps.Size(60, 60), 
-        }} />;
+        }} />}
         {teamArray.map(([teamId, team]) => (
           <Marker
             key={teamId}
             position={{ lat: team.geocode.lat, lng: team.geocode.lng }}
-            onClick={() => console.log(`Clicked on ${team.name} with address ${team.address}`)}
+            onClick={() => handleMarkerClick(teamId, team.name, team.address as string, team.geocode.lat, team.geocode.lng)}
           />
         ))}
       </GoogleMap>
       <Stack direction="row">
         <Typography>Use prox</Typography>
-        <Checkbox onChange={() => setUseProx(!useProx)}/>
+        <Checkbox onChange={() => {
+          setUseProx(!useProx);
+          if (useProx) {
+            setNeedsReset(true);
+          }
+          }}/>
         <Typography>Use DRP</Typography>
         <Checkbox onChange={() => setUseRank(!useRank)}/>
       </Stack>
       <Stack direction="row">
-        {useProx && proxList.length != 0 ? <SortedList inputs={proxList} title="Teams by Proximity" dense={false}/> : <></>}
-        {useRank && rankList.length != 0 ? <SortedList inputs={rankList} title="Teams by DRP" dense={false}/> : <></>}
+        {(useProx && proxList.length != 0) && <SortedList inputs={proxList} title="Teams by Proximity" dense={false}/>}
+        {(useRank && rankList.length != 0) && <SortedList inputs={rankList} title="Teams by DRP" dense={false}/>}
+        {(markerState.number != "" && markerState.name != "" && markerState.address != "" && teamClicked) 
+        && <TeamDesc name={markerState.name} number={markerState.number} address={markerState.address}/>}
       </Stack>
     </Stack>
   );

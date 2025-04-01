@@ -16,9 +16,11 @@ export const SortedList = ({ inputs, title, dense }: SortedListProps) => {
     });
 
     const handlePageChange = (event: ChangeEvent<unknown>, page: number) => {
-        const from = (page - 1) * numPerPage;
-        const to = from + numPerPage;
-        setPagination({ ...pagination, from: from, to: to });
+        if (event) {
+            const from = (page - 1) * numPerPage;
+            const to = from + numPerPage;
+            setPagination({ from: from, to: to });
+        }
     }
 
     return (
