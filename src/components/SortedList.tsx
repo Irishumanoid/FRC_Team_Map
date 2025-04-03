@@ -1,6 +1,6 @@
 import { IconButton, List, ListItem, ListItemText, Pagination, Stack, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 interface SortedListProps {
     inputs: [string, number][],
@@ -8,12 +8,17 @@ interface SortedListProps {
     dense: boolean,
 }
 
-export const SortedList = ({ inputs, title, dense }: SortedListProps) => {
+export const SortedList = ({ inputs: initInputs, title, dense }: SortedListProps) => {
     const numPerPage = 10;
     const [pagination, setPagination] = useState({
         from: 0,
         to: numPerPage,
     });
+    const [inputs, setInputs] = useState<[string, number][]>(initInputs);
+
+    useEffect(() => {
+        setInputs(initInputs);
+    }, [initInputs]);
 
     const handlePageChange = (event: ChangeEvent<unknown>, page: number) => {
         if (event) {
@@ -21,6 +26,10 @@ export const SortedList = ({ inputs, title, dense }: SortedListProps) => {
             const to = from + numPerPage;
             setPagination({ from: from, to: to });
         }
+    }
+
+    const deleteElement = (id: string) => {
+        setInputs((prevInputs) => prevInputs.filter(([name]) => name !== id));
     }
 
     return (
@@ -31,11 +40,11 @@ export const SortedList = ({ inputs, title, dense }: SortedListProps) => {
                 <ListItem
                     key={name} 
                     secondaryAction={
-                        <IconButton edge="end" aria-label="delete">
-                            <DeleteIcon />
+                        <IconButton edge="end" aria-label="delete" onClick={() => deleteElement(name)}>
+                            <DeleteIcon/>
                         </IconButton>
                     }>
-                    <ListItemText primary={`team ${name}`} secondary={`normalized score: ${number}`} />
+                    <ListItemText primary={`team ${name}`} secondary={`normalized score: ${number.toPrecision(3)}`} />
                 </ListItem>
             ))}
          </List>

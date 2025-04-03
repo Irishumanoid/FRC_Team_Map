@@ -2,10 +2,10 @@ import { Box, Typography } from '@mui/material';
 import './App.css';
 import { MapDisplay } from './components/MapDisplay';
 import { useEffect, useState } from 'react';
-import { Data } from './components/JsonInterfaces';
+import { AddressData } from './components/JsonInterfaces';
 
 const App = () => {
-  const [teamData, setTeamData] = useState<Data | null>(null);
+  const [teamData, setTeamData] = useState<AddressData | null>(null);
 
   useEffect(() => {
     fetch('/team_addresses_w_codes.json') 

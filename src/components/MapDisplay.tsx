@@ -1,7 +1,7 @@
 import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import Box from '@mui/material/Box';
 import { Checkbox, Stack, Typography } from '@mui/material';
-import { Data } from './JsonInterfaces';
+import { AddressData, DrpData } from './JsonInterfaces';
 import { useEffect, useState } from 'react';
 import { SortedList }  from './SortedList';
 import { TeamDesc } from './TeamDesc';
@@ -9,84 +9,77 @@ import { TeamDesc } from './TeamDesc';
 interface MapProps {
   width?: number,
   height?: number,
-  teams?: Data | null,
+  teams?: AddressData | null,
 }
 
-  const getDistToTeamKm = async (lat: number, long: number, teamNumber: number) => {
-    const response = await fetch('/team_addresses_w_codes.json');
-    const teamData: Data = await response.json();
-    
+  const getDistToTeamKm = (lat: number, long: number, teamNumber: number, addresses: AddressData | null) => {
+    if (addresses) {
+      const teamData: AddressData = addresses;
 
-    if (!teamData || !teamData[teamNumber]) {
-      console.log(`Team ${teamNumber} not found`);
-      return null;
+      if (!teamData || !teamData[teamNumber]) {
+        console.log(`Team ${teamNumber} not found`);
+        return null;
+      }
+  
+      const team = teamData[teamNumber];
+      if (
+        typeof team.geocode === "string" ||
+        !("lat" in team.geocode) ||
+        !("lng" in team.geocode)
+      ) {
+        console.log("Invalid geocode for team, cannot calculate distance.");
+        return null;
+      }
+  
+      const R = 6371; 
+      const dLat = ((team.geocode.lat - lat) * Math.PI) / 180;
+      const dLng = ((team.geocode.lng - long) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat * Math.PI) / 180) *
+          Math.cos((team.geocode.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+      return R * c;
     }
-
-    const team = teamData[teamNumber];
-    if (
-      typeof team.geocode === "string" ||
-      !("lat" in team.geocode) ||
-      !("lng" in team.geocode)
-    ) {
-      console.log("Invalid geocode for team, cannot calculate distance.");
-      return null;
-    }
-
-    const R = 6371; 
-    const dLat = ((team.geocode.lat - lat) * Math.PI) / 180;
-    const dLng = ((team.geocode.lng - long) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat * Math.PI) / 180) *
-        Math.cos((team.geocode.lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
+    return 0.0;
   }
 
-  const useDistances = (lat: number, lng: number) => {
+  const useDistances = (lat: number, lng: number, teamData: DrpData | null, addresses: AddressData | null) => {
     const [dists, setDists] = useState<Map<string, number> | null>(null);
-    // so distance calculations can be updated without violating react hook rules
     useEffect(() => { 
-      const fetchDistances = async () => {
-        try {
-            const response = await fetch('/teams_drp.json');
-            const data = await response.json();
-            const distanceMap = new Map<string, number>();
-            for (const teamNumber in Object.keys(data)) {
-              const dist = await getDistToTeamKm(lat, lng, Number(teamNumber));
-              if (dist !== null) {
-                distanceMap.set(teamNumber, dist);
-              }
-            }
-            setDists(distanceMap);
-        } catch (error) {
-          console.error("error updating team distances: ", error);
+      if (teamData && addresses) {
+        const distanceMap = new Map<string, number>();
+        for (const teamNumber in Object.keys(teamData)) {
+          const dist = getDistToTeamKm(lat, lng, Number(teamNumber), addresses);
+          if (dist !== null) {
+            distanceMap.set(teamNumber, dist);
+          }
         }
+        setDists(distanceMap);
       }
-      fetchDistances();
-    }, [lat, lng]);
+    }, [lat, lng, teamData, addresses]);
     return dists;
   }
 
-  const useTeamRanks = () => {
+  const useTeamRanks = (teamData: {} | null) => {
     const [ranks, setRanks] = useState<Map<string, number> | null>(null);
     useEffect(() => {
-      fetch('/teams_drp.json')
-      .then(response => response.json())
-      .then((data) => {
-        const dataMap = new Map(Object.entries(data).map(([teamNumber, drp]) => [String(teamNumber), Number(drp)]));
+      if (teamData) {
+        const dataMap = new Map(Object.entries(teamData).map(([teamNumber, drp]) => [String(teamNumber), Number(drp)]));
         setRanks(dataMap);
-      }).catch((error) => console.error("Error fetching team rank data", error));
-    }, []);
+      }
+    }, [teamData]);
     return ranks;
   }
 
 export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
   const gMapsKey: string = import.meta.env.VITE_GOOGLE_MAPS_KEY;
   const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: gMapsKey });
+  const[teamData, setTeamData] = useState<DrpData | null>(null);
+  const [addresses, setAddresses] = useState<AddressData | null>(null);
   const [lat, setLat] = useState(39.8283);
   const [lng, setLng] = useState(-98.5795);
   const [useProx, setUseProx] = useState(false);
@@ -94,10 +87,36 @@ export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
   const [proxList, setProxList] = useState<[string, number][]>([]);
   const [needsReset, setNeedsReset] = useState(false);
   const [rankList, setRankList] = useState<[string, number][]>([]);
-  const dists = useDistances(lat, lng);
-  const ranks = useTeamRanks();
+  const dists = useDistances(lat, lng, teamData, addresses);
+  const ranks = useTeamRanks(teamData);
   const [markerState, setMarkerState] = useState({number: "", name: "", address: "",});
   const [teamClicked, setTeamClicked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch('/teams_drp.json');
+        const data = await response.json();
+        console.log(`fetched team data:`, data);
+        setTeamData(data);
+      } catch (error) {
+        console.error("Error fetching team data:", error);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch('/team_addresses_w_codes.json');
+        const data = await response.json();
+        console.log("Fetched address data:", data);
+        setAddresses(data);
+      } catch (error) {
+        console.error("Error fetching team addresses:", error);
+      }
+    })();
+  }, []);
   
 
   if (loadError) return (
@@ -172,13 +191,22 @@ export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
           url: "here.png", 
           scaledSize: new google.maps.Size(60, 60), 
         }} />}
-        {teamArray.map(([teamId, team]) => (
-          <Marker
-            key={teamId}
-            position={{ lat: team.geocode.lat, lng: team.geocode.lng }}
-            onClick={() => handleMarkerClick(teamId, team.name, team.address as string, team.geocode.lat, team.geocode.lng)}
-          />
-        ))}
+        {teamArray.map(([teamId, team]) => {
+          const lat = team.geocode?.lat;
+          const lng = team.geocode?.lng;
+          if (typeof lat !== "number" || typeof lng !== "number") {
+            console.warn(`Invalid coordinates for team ${teamId}: lat=${lat}, lng=${lng}`);
+            return null;
+          }
+
+          return (
+            <Marker
+              key={teamId}
+              position={{ lat, lng }}
+              onClick={() => handleMarkerClick(teamId, team.name, team.address as string, lat, lng)}
+            />
+          );
+        })}
       </GoogleMap>
       <Stack direction="row">
         <Typography>Use prox</Typography>

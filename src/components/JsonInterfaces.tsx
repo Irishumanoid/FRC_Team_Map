@@ -7,8 +7,12 @@ interface TeamAddress {
     };
   }
   
-  interface Data {
-    [key: string]: TeamAddress;
-  }
+interface AddressData {
+  [key: string]: TeamAddress;
+}
 
-  export type { TeamAddress, Data };
+interface DrpData {
+  drp: number
+}
+
+export type { TeamAddress, AddressData, DrpData};
