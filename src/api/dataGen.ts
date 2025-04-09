@@ -71,10 +71,20 @@ class TbaFetcher {
     fs.writeFileSync("teams.json", JSON.stringify(allTeamsJson, null, 4));
   }
 
+  async isTeamActive(team: string, currentYear: number): Promise<boolean> {
+    const yearsActive = await this.getResult(`team/frc${team}/yearsParticipated`);
+        if (yearsActive[yearsActive.length - 1 ] != currentYear) {
+          console.log(`team ${team} is not active in ${currentYear}`);
+          return false;
+        }
+    return true;
+  }
+
   async getAllAddresses(): Promise<void> {
     let teamObj: Record<string, TeamAddress> = {};
-    
+    const currentYear = new Date().getFullYear();
     const data = JSON.parse(fs.readFileSync("teams.json", "utf-8"));
+    
     
     for (const page in data) {
       for (const team of data[page]) {
@@ -83,6 +93,10 @@ class TbaFetcher {
         const address = this.makeTeamAddress(team);
         let geocode: { lat: number; lng: number } | string = "Invalid address";
 
+        const isActive = await this.isTeamActive(team, currentYear);
+        if (!isActive) {
+          break;
+        }
         if (address) {
           try {
             const geoRes = await this.maps.geocode({
@@ -103,7 +117,7 @@ class TbaFetcher {
     }
 
     fs.writeFileSync(
-      "team_addresses_w_codes.json",
+      "good_team_addresses_w_codes.json",
       JSON.stringify(teamObj, null, 4)
     );
   }
@@ -112,6 +126,7 @@ class TbaFetcher {
   async getTeamDrps(year: number, save_name?: string): Promise<void> {
     let teamDrpMap = new Map();
     const events = await this.getResult(`events/${year}/keys`);
+    const currentYear = new Date().getFullYear();
 
     for (const index in events) {
       const results = await this.getResult(`event/${events[index]}/rankings`);
@@ -121,6 +136,12 @@ class TbaFetcher {
         const drp = this.read(rankings[index], 'extra_stats')[0];
         const teamCode = this.read(rankings[index], 'team_key');
         const teamNumber = teamCode.substring(3, teamCode.length);
+
+        const isActive = await this.isTeamActive(teamNumber, currentYear);
+        if (!isActive) {
+          break;
+        }
+
         console.log(`found drp of ${drp} for team ${teamNumber}`);
         
         if (teamDrpMap.has(teamNumber)) {
@@ -152,5 +173,3 @@ class TbaFetcher {
     fs.writeFileSync(save_name ? `${save_name}.json` : "teams_drps.json", JSON.stringify(Object.fromEntries(topDrpMap), null, 4));
   }
 }
-
-// run with: npx run dataGen.ts
