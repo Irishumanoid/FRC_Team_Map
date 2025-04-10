@@ -49,13 +49,13 @@ const getDistToTeamKm = (lat: number, long: number, teamNumber: number, addresse
 }
 
 const findNearbyTeams = (searchRadiusKm: number, lat: number, lng: number, addresses: AddressData | null) => {
-  let validTeams: Team[] = [];
+  let validTeams: Map<string, number> = new Map();
   if (addresses) {
     const teamData: AddressData = addresses;
     Object.keys(teamData).forEach((teamNumber) => {
       const dist = getDistToTeamKm(lat, lng, Number(teamNumber), addresses);
       if (dist && dist <= searchRadiusKm) {
-        validTeams.push(new Team(teamNumber, addresses[teamNumber].name, addresses[teamNumber].address as string));
+        validTeams.set(teamNumber, dist);
       }
     });
   }
@@ -90,6 +90,14 @@ const useTeamRanks = (teamData: {} | null) => {
   return ranks;
 }
 
+const sortTeamsByDist = (dists: Map<string, number>) => {
+  const maxDist = Math.max(...Array.from(dists.values()));
+  const newProxList: [string, number][] = Array.from(dists.entries())
+    .map(([teamNumber, dist]) => [teamNumber, 1 - dist / maxDist]);
+  newProxList.sort((a, b) => b[1] - a[1]);
+  return newProxList;
+}
+
 export const MapDisplay = ({width=100, height=100, teams}: MapProps) => {
 const gMapsKey: string = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 const { isLoaded, loadError } = useLoadScript({ googleMapsApiKey: gMapsKey });
@@ -106,7 +114,6 @@ const ranks = useTeamRanks(teamData);
 const [markerState, setMarkerState] = useState({number: "", name: "", address: "",});
 const [teamClicked, setTeamClicked] = useState(false);
 const [searchRadius, setSearchRadius] = useState(0.0);
-const [resetRadius, setResetRadius] = useState(false);
 
 
 useEffect(() => {
@@ -135,10 +142,6 @@ useEffect(() => {
   })();
 }, []);
 
-useEffect(() => {
-  console.log(findNearbyTeams(searchRadius, lat, lng, addresses));
-}, [searchRadius]);
-
 
 if (loadError) return (
     <Box>
@@ -155,11 +158,22 @@ const handleMarkerClick = (teamNumber: string, name: string, address: string, la
 }
 
 useEffect(() => {
+  console.log(`search radius is ${searchRadius}`);
+  if (searchRadius != 0.0) {
+    const teams = findNearbyTeams(searchRadius, lat, lng, addresses)
+    const newProxList = sortTeamsByDist(teams);
+    setProxList(newProxList);
+  } else {
+    const teamsByDists = dists;
+    if (teamsByDists != null) {
+      setProxList(sortTeamsByDist(teamsByDists));
+    }
+  }
+}, [searchRadius]);
+
+useEffect(() => {
   if (useProx && dists) {
-      const maxDist = Math.max(...Array.from(dists.values()));
-      const newProxList: [string, number][] = Array.from(dists.entries()).map(
-        ([teamNumber, dist]) => [teamNumber, 1 - dist / maxDist]);
-      newProxList.sort((a, b) => b[1] - a[1]); // sort by 2nd tuple element
+      const newProxList = sortTeamsByDist(dists);
       setProxList(newProxList);
   }
 }, [useProx, dists]);
@@ -237,13 +251,12 @@ return (
         sx={{ width: 110, paddingLeft: 4 }}
         type="number"
         inputProps={{ min: 0 , max: 20037 }}
-        value={resetRadius ? 0 : searchRadius}
+        value={searchRadius}
         onChange={(e) => {
           setSearchRadius(Number(e.target.value));
-          setResetRadius(false);
         }}
         />
-      <IconButton edge="end" aria-label="delete" onClick={() => setResetRadius(true)}>
+      <IconButton edge="end" aria-label="delete" onClick={() => setSearchRadius(0.0)}>
           <ClearIcon/>
       </IconButton>
     </Stack>
